@@ -1,0 +1,23 @@
+ssh-keygen -t ed25519 -C "you@example.com
+git log --oneline --decorate -n 5 if you want to verify commits
+git branch -D master
+
+npm install -g firebase-tools
+firebase login
+npm run build
+firebase deploy --only hosting
+
+
+# ensure dependencies are installed (we added firebase-tools as devDependency)
+npm install
+
+# login to Firebase (interactive)
+npx firebase login
+
+# build and deploy hosting (or use the npm script)
+npx firebase deploy --only hosting
+# or
+npm run deploy
+
+
+npx firebase logout
