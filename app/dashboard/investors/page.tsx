@@ -11,7 +11,7 @@ import type { Investor } from '@/types';
 
 export default function InvestorsPage() {
   const { investors, setInvestors, trades, addNotification } = useAppStore();
-  const { canWrite } = useRole();
+  const { canWrite, isAdmin } = useRole();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [search, setSearch] = useState('');
@@ -23,7 +23,10 @@ export default function InvestorsPage() {
   const filtered = investors.filter((i) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return i.name.toLowerCase().includes(q) || i.phone.includes(q) || (i.email || '').toLowerCase().includes(q);
+    if (isAdmin) {
+      return i.name.toLowerCase().includes(q) || i.phone.includes(q) || (i.email || '').toLowerCase().includes(q);
+    }
+    return i.name.toLowerCase().includes(q);
   });
 
   const enriched = filtered.map((inv) => {
@@ -147,7 +150,9 @@ export default function InvestorsPage() {
                       {inv.status || 'active'}
                     </Badge>
                   </div>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{inv.phone} {inv.email && `• ${inv.email}`}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    {isAdmin ? `${inv.phone}${inv.email ? ` • ${inv.email}` : ''}` : 'Contact information hidden'}
+                  </p>
                 </div>
                 {canWrite && (
                   <button

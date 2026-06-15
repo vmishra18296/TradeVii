@@ -2,47 +2,88 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { useAppStore } from '@/stores/useAppStore';
 import { formatCurrency } from '@/lib/utils';
+import { PerformanceOverviewChart } from '@/components/charts/PerformanceOverviewChart';
 
 export default function LandingPage() {
   const [activeChart, setActiveChart] = useState<'weekly' | 'monthly'>('weekly');
+  const trades = useAppStore((state) => state.trades);
+  const investors = useAppStore((state) => state.investors);
 
-  // Static demo stats for the landing page (no private data exposure)
-  const tradingStats = {
-    totalPL: 0,
-    totalTurnover: 0,
-    wins: 0,
-    losses: 0,
-    winRate: '0',
-    totalTrades: 0,
-    todayPL: 0,
-  };
+  const tradingStats = useMemo(() => {
+    const totalPL = trades.reduce((sum, trade) => sum + (trade.netPL || 0), 0);
+    const totalTurnover = trades.reduce((sum, trade) => sum + (trade.turnover || 0), 0);
+    const wins = trades.filter((trade) => (trade.netPL || 0) > 0).length;
+    const losses = trades.filter((trade) => (trade.netPL || 0) < 0).length;
+    const totalTrades = trades.length;
+    const winRate = totalTrades ? Math.round((wins / totalTrades) * 100) : 0;
+    const today = new Date().toISOString().split('T')[0];
+    const todayPL = trades
+      .filter((trade) => trade.date === today)
+      .reduce((sum, trade) => sum + (trade.netPL || 0), 0);
 
-  const investmentStats = {
-    totalInvested: 0,
-    activeInvestors: 0,
-    totalInvestors: 0,
-    avgInvestment: 0,
-  };
+    return {
+      totalPL,
+      totalTurnover,
+      wins,
+      losses,
+      winRate: String(winRate),
+      totalTrades,
+      todayPL,
+    };
+  }, [trades]);
 
-  // Empty chart data for display
+  const investmentStats = useMemo(() => {
+    const totalInvested = investors.reduce((sum, investor) => sum + (investor.amount || 0), 0);
+    const totalInvestors = investors.length;
+    const activeInvestors = investors.filter((investor) => !investor.status || investor.status === 'active').length;
+    const avgInvestment = totalInvestors ? totalInvested / totalInvestors : 0;
+
+    return {
+      totalInvested,
+      activeInvestors,
+      totalInvestors,
+      avgInvestment,
+    };
+  }, [investors]);
+
   const chartData = useMemo(() => {
     const days = activeChart === 'weekly' ? 7 : 30;
-    const data: { date: string; pl: number; turnover: number }[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      data.push({
-        date: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
-        pl: 0,
-        turnover: 0,
-      });
-    }
-    return data;
-  }, [activeChart]);
+    const today = new Date();
+
+    return Array.from({ length: days }, (_, index) => {
+      const currentDay = new Date(today);
+      currentDay.setDate(today.getDate() - (days - 1 - index));
+      const dateKey = currentDay.toISOString().split('T')[0];
+      const dailyTrades = trades.filter((trade) => trade.date === dateKey);
+      const pl = dailyTrades.reduce((sum, trade) => sum + (trade.netPL || 0), 0);
+      const turnover = dailyTrades.reduce((sum, trade) => sum + (trade.turnover || 0), 0);
+
+      return {
+        date: currentDay.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+        pl,
+        turnover,
+      };
+    });
+  }, [activeChart, trades]);
 
   const maxPL = Math.max(...chartData.map((d) => Math.abs(d.pl)), 1);
   const maxTurnover = Math.max(...chartData.map((d) => d.turnover), 1);
+
+  const performanceSummary = useMemo(() => {
+    const profit = chartData.reduce((sum, d) => sum + (d.pl > 0 ? d.pl : 0), 0);
+    const loss = chartData.reduce((sum, d) => sum + (d.pl < 0 ? Math.abs(d.pl) : 0), 0);
+    const totalTurnover = chartData.reduce((sum, d) => sum + d.turnover, 0);
+    const winRate = chartData.length ? Math.round((chartData.filter((d) => d.pl > 0).length / chartData.length) * 100) : 0;
+    return {
+      profit,
+      loss,
+      netPL: profit - loss,
+      totalTurnover,
+      winRate,
+    };
+  }, [chartData]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
@@ -148,40 +189,53 @@ export default function LandingPage() {
         </div>
 
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6">
-          {/* P&L Bar Chart */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Daily Profit & Loss</h3>
-            <div className="flex items-end gap-1 h-48">
-              {chartData.map((d, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg px-2 py-1 text-[10px] font-medium text-[var(--text-primary)] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                    {formatCurrency(d.pl)}
-                  </div>
-                  <div
-                    className={`w-full max-w-[28px] rounded-t-md transition-all duration-300 ${d.pl >= 0 ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' : 'bg-gradient-to-t from-red-600 to-red-400'}`}
-                    style={{ height: `${Math.max((Math.abs(d.pl) / maxPL) * 100, 4)}%` }}
-                  />
-                  <span className="text-[9px] text-[var(--text-muted)] mt-2 truncate w-full text-center">{d.date}</span>
-                </div>
-              ))}
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] items-center">
+            <div>
+              <PerformanceOverviewChart chartData={chartData} investedCapital={investmentStats.totalInvested} />
             </div>
-          </div>
-
-          {/* Turnover Line indicator */}
-          <div>
-            <h3 className="text-sm font-medium text-[var(--text-muted)] mb-4">Daily Turnover</h3>
-            <div className="flex items-end gap-1 h-32">
-              {chartData.map((d, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg px-2 py-1 text-[10px] font-medium text-[var(--text-primary)] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                    {formatCurrency(d.turnover)}
+            <div className="grid gap-4">
+              <div className="rounded-3xl bg-[var(--bg-primary)] border border-[var(--border)] p-5">
+                <p className="text-sm font-medium text-[var(--text-muted)]">Snapshot</p>
+                <div className="mt-6 grid gap-3">
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--bg-card)] p-4 border border-[var(--border)]">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Total Profit</p>
+                      <p className="text-lg font-semibold text-emerald-400">{formatCurrency(performanceSummary.profit)}</p>
+                    </div>
+                    <span className="text-sm text-emerald-400">+{performanceSummary.winRate}%</span>
                   </div>
-                  <div
-                    className="w-full max-w-[28px] rounded-t-md bg-gradient-to-t from-indigo-600 to-cyan-400 transition-all duration-300"
-                    style={{ height: `${Math.max((d.turnover / maxTurnover) * 100, 2)}%` }}
-                  />
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--bg-card)] p-4 border border-[var(--border)]">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Total Loss</p>
+                      <p className="text-lg font-semibold text-red-400">{formatCurrency(performanceSummary.loss)}</p>
+                    </div>
+                    <span className="text-sm text-red-400">–</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-[var(--bg-card)] p-4 border border-[var(--border)]">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Turnover</p>
+                      <p className="text-lg font-semibold text-cyan-400">{formatCurrency(performanceSummary.totalTurnover)}</p>
+                    </div>
+                    <span className="text-sm text-[var(--text-muted)]">Live</span>
+                  </div>
                 </div>
-              ))}
+              </div>
+              <div className="rounded-3xl bg-[var(--bg-primary)] border border-[var(--border)] p-5">
+                <p className="text-sm font-medium text-[var(--text-muted)]">Insight</p>
+                <p className="mt-4 text-sm leading-7 text-[var(--text-primary)]">
+                  Track how profitable days compare to loss days with a clear circular overview. The donut chart highlights net P&L and helps surface trends at a glance.
+                </p>
+                <div className="mt-5 grid gap-3">
+                  <div className="rounded-2xl bg-[var(--bg-card)] p-4 border border-[var(--border)]">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Win Rate</p>
+                    <p className="mt-2 text-lg font-semibold text-purple-400">{performanceSummary.winRate}%</p>
+                  </div>
+                  <div className="rounded-2xl bg-[var(--bg-card)] p-4 border border-[var(--border)]">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Net P&L</p>
+                    <p className={`mt-2 text-lg font-semibold ${performanceSummary.netPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(performanceSummary.netPL)}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

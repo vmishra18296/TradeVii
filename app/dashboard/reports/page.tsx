@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
+import { useRole } from '@/hooks/useRole';
 import { Card, Button, DateRangePicker, Tabs, Badge } from '@/components/ui';
 import { formatCurrency, formatDate, todayStr } from '@/lib/utils';
 import { calcInvestorInterestPrecise } from '@/lib/interest';
@@ -9,6 +10,7 @@ import * as XLSX from 'xlsx';
 
 export default function ReportsPage() {
   const { trades, investors } = useAppStore();
+  const { isAdmin } = useRole();
   const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(null);
 
   const filteredTrades = useMemo(() => {
@@ -71,16 +73,24 @@ export default function ReportsPage() {
 
   function exportInvestors() {
     const ws = XLSX.utils.json_to_sheet(
-      investorReport.map((inv) => ({
-        Name: inv.name, Phone: inv.phone, Email: inv.email || '',
-        'Investment (₹)': inv.amount, 'Join Date': inv.joinDate,
-        Status: inv.status || 'active',
-        'Days Invested': inv.interest?.preciseDays?.toFixed(0) || 0,
-        'Fixed Interest (₹)': inv.interest?.totalFixedInterest?.toFixed(2) || 0,
-        'Profit Share (₹)': inv.interest?.tradeProfitShare?.toFixed(2) || 0,
-        'Total Interest (₹)': inv.interest?.totalInterest?.toFixed(2) || 0,
-        'Current Value (₹)': inv.interest?.totalAmount?.toFixed(2) || inv.amount,
-      }))
+      investorReport.map((inv) => {
+        const row: Record<string, string | number> = {
+          Name: inv.name,
+          'Investment (₹)': inv.amount,
+          'Join Date': inv.joinDate,
+          Status: inv.status || 'active',
+          'Days Invested': inv.interest?.preciseDays?.toFixed(0) || 0,
+          'Fixed Interest (₹)': inv.interest?.totalFixedInterest?.toFixed(2) || 0,
+          'Profit Share (₹)': inv.interest?.tradeProfitShare?.toFixed(2) || 0,
+          'Total Interest (₹)': inv.interest?.totalInterest?.toFixed(2) || 0,
+          'Current Value (₹)': inv.interest?.totalAmount?.toFixed(2) || inv.amount,
+        };
+        if (isAdmin) {
+          row['Phone'] = inv.phone;
+          row['Email'] = inv.email || '';
+        }
+        return row;
+      })
     );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Investors');

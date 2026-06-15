@@ -8,9 +8,20 @@ import { RecentTrades } from '@/components/dashboard/RecentTrades';
 import { TopInvestors } from '@/components/dashboard/TopInvestors';
 import { LivePortfolio } from '@/components/dashboard/LivePortfolio';
 import { PerformanceInsights } from '@/components/dashboard/PerformanceInsights';
+import dynamic from 'next/dynamic';
 import { DailyPLChart } from '@/components/charts/DailyPLChart';
+import { EquityCurve } from '@/components/charts/EquityCurve';
 import { PieChart } from '@/components/charts/PieChart';
 import { MonthlyChart } from '@/components/charts/MonthlyChart';
+const CandleChart = dynamic(
+  () => import('@/components/charts/CandleChart').then((mod) => mod.CandleChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 flex items-center justify-center text-[var(--text-muted)]">Loading chart...</div>
+    ),
+  }
+);
 import { Card } from '@/components/ui/Card';
 
 export default function DashboardPage() {
@@ -57,21 +68,33 @@ export default function DashboardPage() {
       {/* Performance Insights */}
       <PerformanceInsights trades={trades} />
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="Daily P&L Trend (30 Days)">
-          <div className="h-64">
-            <DailyPLChart trades={trades} />
+      {/* Performance charts */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
+        <Card title="Portfolio Performance">
+          <div className="h-[420px]">
+            <EquityCurve trades={trades} />
           </div>
         </Card>
-        <Card title="Investment Distribution">
-          <div className="h-64">
-            <PieChart investors={investors} />
-          </div>
-        </Card>
+
+        <div className="space-y-4">
+          <Card title="Daily P&L Trend (30 Days)">
+            <div className="h-64">
+              <DailyPLChart trades={trades} />
+            </div>
+          </Card>
+          <Card title="Daily Candle Range">
+            <div className="h-64">
+              <CandleChart trades={trades} />
+            </div>
+          </Card>
+          <Card title="Investor Distribution">
+            <div className="h-64">
+              <PieChart investors={investors} />
+            </div>
+          </Card>
+        </div>
       </div>
 
-      {/* Monthly chart */}
       <Card title="Monthly Turnover & P&L">
         <div className="h-72">
           <MonthlyChart trades={trades} />

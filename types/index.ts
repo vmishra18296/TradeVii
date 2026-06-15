@@ -23,6 +23,12 @@ export interface Trade {
   tags?: string[];
 }
 
+export interface PerformanceOverviewPoint {
+  date: string;
+  pl: number;
+  turnover: number;
+}
+
 export interface Investor {
   id?: string;
   name: string;

@@ -54,7 +54,7 @@ function AdminLoginScreen() {
         setRoleInSession('admin');
         setAttempts(0);
         showToast('Welcome, Admin!', 'success');
-        router.refresh();
+        router.push('/dashboard');
       } else {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
